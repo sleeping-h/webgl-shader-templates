@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGL Fullscreen Fragment Shader</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="glcanvas"></canvas>
+    <script type="text/javascript">
+        const vertexShaderSource = `#version 300 es
+            in vec4 aVertexPosition;
+            void main(void) {
+                gl_Position = aVertexPosition;
+            }
+        `;
+
+        const fragmentShaderSource = `#version 300 es
+            precision mediump float;
+            out vec4 fragColor;
+            uniform float uTime;
+            uniform vec2 uResolution;
+
+            void main(void) {
+                vec2 uv = gl_FragCoord.xy / uResolution.x - .5;
+                vec2 circles[] = vec2[](
+                    vec2(.5*sin(-1.6*uTime), .4*cos(.4*uTime)),
+                    vec2(.3*sin(.7*uTime), .2*cos(.5*uTime)),
+                    vec2(.4*sin(1.*uTime), .1*cos(2.*uTime)),
+                    vec2(.1*sin(2.*uTime), .3*cos(.7*uTime)),
+                    vec2(.5*sin(.8*uTime), .5*cos(.9*uTime))
+                );
+                float d = 9999999.;
+                for (int i; i < circles.length(); i++) {
+                    float mm = length(circles[i] - uv) ;
+                    if (d > mm)
+                        d = mm;
+                }
+                d = 1.-d*2.5;
+                fragColor = vec4(d,d,d,1);
+            }
+        `;
+
+        function initWebGL(canvas) {
+            const gl = canvas.getContext("webgl2");
+            if (!gl) {
+                alert("Unable to initialize WebGL. Your browser may not support it.");
+                return null;
+            }
+            return gl;
+        }
+
+        function createShader(gl, sourceCode, type) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, sourceCode);
+            gl.compileShader(shader);
+
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                alert("An error occurred compiling the shaders: " + gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+
+            return shader;
+        }
+
+        function initShaders(gl, vertexShaderSource, fragmentShaderSource) {
+            const vertexShader = createShader(gl, vertexShaderSource, gl.VERTEX_SHADER);
+            const fragmentShader = createShader(gl, fragmentShaderSource, gl.FRAGMENT_SHADER);
+
+            const shaderProgram = gl.createProgram();
+            gl.attachShader(shaderProgram, vertexShader);
+            gl.attachShader(shaderProgram, fragmentShader);
+            gl.linkProgram(shaderProgram);
+
+            if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+                alert("Unable to initialize the shader program: " + gl.getProgramInfoLog(shaderProgram));
+                return null;
+            }
+
+            return shaderProgram;
+        }
+
+        function initBuffers(gl) {
+            const vertices = new Float32Array([
+                -1.0, -1.0,
+                 1.0, -1.0,
+                -1.0,  1.0,
+                 1.0,  1.0,
+            ]);
+
+            const vertexBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+            return vertexBuffer;
+        }
+
+        function main() {
+            const canvas = document.getElementById('glcanvas');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            const gl = initWebGL(canvas);
+            if (!gl) return;
+
+            const shaderProgram = initShaders(gl, vertexShaderSource, fragmentShaderSource);
+
+            const vertexPosition = gl.getAttribLocation(shaderProgram, 'aVertexPosition');
+            const uResolution = gl.getUniformLocation(shaderProgram, 'uResolution');
+            const uTime = gl.getUniformLocation(shaderProgram, 'uTime');
+
+            const vertexBuffer = initBuffers(gl);
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+            gl.vertexAttribPointer(vertexPosition, 2, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(vertexPosition);
+
+            gl.useProgram(shaderProgram);
+
+            function render(time) {
+                time *= 0.001; // Convert to seconds
+
+                gl.uniform2f(uResolution, canvas.width, canvas.height);
+                gl.uniform1f(uTime, time);
+
+                gl.clear(gl.COLOR_BUFFER_BIT);
+
+                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+                requestAnimationFrame(render);
+            }
+            requestAnimationFrame(render);
+        }
+
+        window.onload = main;
+    </script>
+</body>
+</html>

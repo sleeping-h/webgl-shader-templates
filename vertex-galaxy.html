@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animated Vertex Shader</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="glcanvas"></canvas>
+    <script type="text/javascript">
+        // trying to look good on mobile...
+        const numPoints = Math.floor(1000000 / devicePixelRatio ** 2);
+
+        const vertexShaderSource = `
+            precision highp float;
+            attribute vec3 aVertexParams;
+            attribute vec3 aVertexColor;
+            uniform float uTime;
+            uniform float uAspectRatio;
+            varying highp vec4 vColor;
+            void main(void) {
+                // move in ellipse
+                float x = sin(uTime*.2 + aVertexParams.z) * aVertexParams.x*(0.6 + .2*sin(uTime*.1));
+                float y = cos(uTime*.2 + aVertexParams.z) * aVertexParams.x*(1.0 + .3*cos(uTime*.4));
+
+                // rotate each orbit depending on its radius
+                float a = log(aVertexParams.x)*(3.2+.7*sin(uTime*.3)) - uTime*0.1;
+
+                // define position for each point
+                gl_Position = vec4(x * cos(a) - y * sin(a), x * sin(a) + y * cos(a), 0, 1.0);
+
+                // slightly squeeze by Y to see galaxy in 'perspective'
+                gl_Position.y *= uAspectRatio * 0.8;
+
+                // don't set the size too large because you get rectngles
+                gl_PointSize = aVertexParams.y;
+
+                // pass the color to fragment shader
+                vColor = vec4(aVertexColor*(1.2-aVertexParams.x), 1);
+            }
+        `;
+
+        const fragmentShaderSource = `
+            precision highp float;
+            varying highp vec4 vColor;
+            void main(void) {
+                gl_FragColor = vColor;
+            }
+        `;
+
+        function initWebGL(canvas) {
+            const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+            if (!gl) {
+                alert("Unable to initialize WebGL. Your browser may not support it.");
+                return null;
+            }
+            return gl;
+        }
+
+        function createShader(gl, sourceCode, type) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, sourceCode);
+            gl.compileShader(shader);
+
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                alert("An error occurred compiling the shaders: " + gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+
+            return shader;
+        }
+
+        function initShaders(gl) {
+            const vertexShader = createShader(gl, vertexShaderSource, gl.VERTEX_SHADER);
+            const fragmentShader = createShader(gl, fragmentShaderSource, gl.FRAGMENT_SHADER);
+
+            const shaderProgram = gl.createProgram();
+            gl.attachShader(shaderProgram, vertexShader);
+            gl.attachShader(shaderProgram, fragmentShader);
+            gl.linkProgram(shaderProgram);
+
+            if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+                alert("Unable to initialize the shader program: " + gl.getProgramInfoLog(shaderProgram));
+                return null;
+            }
+
+            return shaderProgram;
+        }
+
+        function initBuffers(canvas, gl) {
+            let params = [];
+            let colors = [];
+
+            for (let i = 0; i < numPoints; i++) {
+                // orbit radius
+                params.push(radius = Math.random() * Math.random() * 2 - 1);
+                // adjust point size with canvas.height
+                params.push(size = (Math.random() * canvas.height / 600) / devicePixelRatio);
+                // particle phase
+                params.push(phase = Math.random() * 2 * 3.1415);
+
+                if (phase > 3.14 + Math.random() && radius > Math.random()*.1 || Math.random() > .9) {
+                    colors.push(.2 + Math.random()*.5);
+                    colors.push(.8);
+                    colors.push(.7 + Math.random()*.2);
+                } else {
+                    colors.push(1);
+                    colors.push(1);
+                    colors.push(1);
+                }
+            }
+
+            const paramsBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, paramsBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(params), gl.STATIC_DRAW);
+
+            const colorBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
+
+            return {
+                params: paramsBuffer,
+                color: colorBuffer,
+            };
+        }
+
+        function drawScene(canvas, gl, programInfo, buffers, time) {
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+            const uTime = gl.getUniformLocation(programInfo.program, 'uTime');
+            gl.uniform1f(uTime, time * 0.001);
+            const uAspectRatio = gl.getUniformLocation(programInfo.program, 'uAspectRatio');
+            gl.uniform1f(uAspectRatio, canvas.width / canvas.height);
+
+            {
+                const numComponents = 3;
+                const type = gl.FLOAT;
+                const normalize = false;
+                const stride = 0;
+                const offset = 0;
+                gl.bindBuffer(gl.ARRAY_BUFFER, buffers.params);
+                gl.vertexAttribPointer(
+                    programInfo.attribLocations.vertexParams,
+                    numComponents,
+                    type,
+                    normalize,
+                    stride,
+                    offset);
+                gl.enableVertexAttribArray(
+                    programInfo.attribLocations.vertexParams);
+            }
+
+            {
+                const numComponents = 3;
+                const type = gl.FLOAT;
+                const normalize = false;
+                const stride = 0;
+                const offset = 0;
+                gl.bindBuffer(gl.ARRAY_BUFFER, buffers.color);
+                gl.vertexAttribPointer(
+                    programInfo.attribLocations.vertexColor,
+                    numComponents,
+                    type,
+                    normalize,
+                    stride,
+                    offset);
+                gl.enableVertexAttribArray(
+                    programInfo.attribLocations.vertexColor);
+            }
+
+            gl.useProgram(programInfo.program);
+
+            {
+                const offset = 0;
+                gl.drawArrays(gl.POINTS, offset, numPoints);
+            }
+        }
+
+        function main() {
+            const canvas = document.getElementById('glcanvas');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            const gl = initWebGL(canvas);
+            if (!gl) return;
+
+            const shaderProgram = initShaders(gl);
+
+            const programInfo = {
+                program: shaderProgram,
+                attribLocations: {
+                    vertexParams: gl.getAttribLocation(shaderProgram, 'aVertexParams'),
+                    vertexColor: gl.getAttribLocation(shaderProgram, 'aVertexColor'),
+                }
+            };
+
+            const buffers = initBuffers(canvas, gl);
+
+            function render(time) {
+                drawScene(canvas, gl, programInfo, buffers, time);
+                requestAnimationFrame(render);
+            }
+            requestAnimationFrame(render);
+        }
+
+        window.onload = main;
+    </script>
+</body>
+</html>
