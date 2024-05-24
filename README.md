@@ -4,7 +4,7 @@ This repository contains standalone HTML files with full-screen animated shaders
 
 To keep these templates both valuable and easy to read, I include some useful features like screen aspect ratio and pixel density, but skip some details like cross-platform rendering, generating resolution-agnostic picture, keyboard controls, etc. 
 
-## Contents
+## what's in [templates/](https://github.com/sleeping-h/webgl-shader-templates/tree/main/templates)
 ### vertex-galaxy.html
 
 A template with an animated particle system implemented using a vertex shader. It uses two input buffers with initial parameters and draws approximately 1,000,000 points in a spiral galaxy pattern.
