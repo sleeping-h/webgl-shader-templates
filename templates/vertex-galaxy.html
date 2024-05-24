@@ -112,14 +112,14 @@
                 // orbit radius
                 params.push(radius = Math.random() * Math.random() * 2 - 1);
                 // adjust point size with canvas.height
-                params.push(size = (Math.random() * canvas.height / 600) / devicePixelRatio);
+                params.push(size = (Math.random() * Math.min(canvas.height, canvas.width) / 600) / devicePixelRatio);
                 // particle phase
                 params.push(phase = Math.random() * 2 * 3.1415);
 
                 if (phase > 3.14 + Math.random() && radius > Math.random()*.1 || Math.random() > .9) {
                     colors.push(.2 + Math.random()*.5);
-                    colors.push(.8);
-                    colors.push(.7 + Math.random()*.2);
+                    colors.push(.9);
+                    colors.push(.6 + Math.random()*.4);
                 } else {
                     colors.push(1);
                     colors.push(1);
